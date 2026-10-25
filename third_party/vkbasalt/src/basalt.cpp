@@ -103,6 +103,11 @@ namespace vkBasalt
         layerCreateInfo->u.pLayerInfo = layerCreateInfo->u.pLayerInfo->pNext;
 
         PFN_vkCreateInstance createFunc = (PFN_vkCreateInstance) gpa(VK_NULL_HANDLE, "vkCreateInstance");
+        if (!createFunc)
+        {
+            Logger::err("vkBasalt: failed to resolve vkCreateInstance from next layer");
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
 
         VkInstanceCreateInfo modifiedCreateInfo = *pCreateInfo;
         VkApplicationInfo    appInfo;
@@ -191,7 +196,31 @@ namespace vkBasalt
         // move chain on for next layer
         layerCreateInfo->u.pLayerInfo = layerCreateInfo->u.pLayerInfo->pNext;
 
-        PFN_vkCreateDevice createFunc = (PFN_vkCreateDevice) gipa(VK_NULL_HANDLE, "vkCreateDevice");
+        VkInstance instance = VK_NULL_HANDLE;
+        auto instanceIt = instanceMap.find(GetKey(physicalDevice));
+        if (instanceIt != instanceMap.end())
+        {
+            instance = instanceIt->second;
+        }
+        else if (!instanceMap.empty())
+        {
+            instance = instanceMap.begin()->second;
+        }
+
+        PFN_vkCreateDevice createFunc = nullptr;
+        if (instance != VK_NULL_HANDLE)
+        {
+            createFunc = (PFN_vkCreateDevice) gipa(instance, "vkCreateDevice");
+        }
+        if (!createFunc)
+        {
+            createFunc = (PFN_vkCreateDevice) gipa(VK_NULL_HANDLE, "vkCreateDevice");
+        }
+        if (!createFunc)
+        {
+            Logger::err("vkBasalt: failed to resolve vkCreateDevice from next layer");
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
 
         if (!targetProcess)
         {
@@ -674,9 +703,19 @@ extern "C"
 
         INTERCEPT_CALLS
 
+        if (device == VK_NULL_HANDLE)
+        {
+            return nullptr;
+        }
+
         {
             vkBasalt::scoped_lock l(vkBasalt::globalLock);
-            return vkBasalt::deviceMap[vkBasalt::GetKey(device)]->vkd.GetDeviceProcAddr(device, pName);
+            auto it = vkBasalt::deviceMap.find(vkBasalt::GetKey(device));
+            if (it == vkBasalt::deviceMap.end() || !it->second)
+            {
+                return nullptr;
+            }
+            return it->second->vkd.GetDeviceProcAddr(device, pName);
         }
     }
 
@@ -689,9 +728,19 @@ extern "C"
 
         INTERCEPT_CALLS
 
+        if (instance == VK_NULL_HANDLE)
+        {
+            return nullptr;
+        }
+
         {
             vkBasalt::scoped_lock l(vkBasalt::globalLock);
-            return vkBasalt::instanceDispatchMap[vkBasalt::GetKey(instance)].GetInstanceProcAddr(instance, pName);
+            auto it = vkBasalt::instanceDispatchMap.find(vkBasalt::GetKey(instance));
+            if (it == vkBasalt::instanceDispatchMap.end())
+            {
+                return nullptr;
+            }
+            return it->second.GetInstanceProcAddr(instance, pName);
         }
     }
 
