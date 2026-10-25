@@ -11,7 +11,7 @@ VKBASALT = ROOT / "third_party" / "vkbasalt"
 
 class SourceScopeTests(unittest.TestCase):
     def test_all_vendored_cpp_files_are_accounted_for(self):
-        meson = (VKBASALT / "src" / "meson.build").read_text()
+        meson = (VKBASALT / "src" / "meson.build").read_text(encoding="utf-8")
         listed = set(re.findall(r"'([^']+\.cpp)'", meson))
         actual = {path.name for path in (VKBASALT / "src").glob("*.cpp")}
         self.assertEqual(actual, listed)
@@ -26,7 +26,7 @@ class SourceScopeTests(unittest.TestCase):
         self.assertFalse((ROOT / "third_party" / "spirv-headers").exists())
 
     def test_required_notices_remain(self):
-        package_script = (ROOT / "contrib" / "package.sh").read_text()
+        package_script = (ROOT / "contrib" / "package.sh").read_text(encoding="utf-8")
         for name in ("THIRD_PARTY_LICENSES.md", "THIRD_PARTY_LICENSES.ja.md"):
             with self.subTest(name=name):
                 self.assertTrue((ROOT / name).is_file())
@@ -50,14 +50,14 @@ class SourceScopeTests(unittest.TestCase):
         self.assertFalse((ROOT / "third_party" / "gamescope-protocol-LICENSE").exists())
         for name in ("CMakeLists.txt", "contrib/package.sh", "contrib/framecolor.service"):
             with self.subTest(name=name):
-                self.assertNotIn("gamescope", (ROOT / name).read_text().lower())
+                self.assertNotIn("gamescope", (ROOT / name).read_text(encoding="utf-8").lower())
 
     def test_release_source_excludes_capture(self):
         self.assertFalse((VKBASALT / "src" / "vulkan_capture.cpp").exists())
         self.assertFalse((VKBASALT / "src" / "vulkan_capture.hpp").exists())
         for name in ("src/framecolor_main.cpp", "contrib/framecolorctl", "contrib/package.sh"):
             with self.subTest(name=name):
-                self.assertNotIn("capture", (ROOT / name).read_text().lower())
+                self.assertNotIn("capture", (ROOT / name).read_text(encoding="utf-8").lower())
 
 
 if __name__ == "__main__":

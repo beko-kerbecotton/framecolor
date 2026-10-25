@@ -23,7 +23,7 @@ rm -f "$HOME/.local/libexec/framecolor-guard"
 rm -f "$fc_data_dir/layer/vkBasalt.json.disabled" "$fc_data_dir/lib/libvkbasalt.so"
 rm -f "$fc_data_dir/framecolor.cube" "$fc_data_dir/vkBasalt.conf"
 rm -f "$fc_data_dir/SUPPORTED_STEAMVR_VERSION"
-rm -f "$fc_config_dir/current.txt" "$fc_config_dir/presets.txt" "$fc_config_dir/vulkan.env" "$fc_config_dir/guard-failure-limit"
+rm -f "$fc_config_dir/current.txt" "$fc_config_dir/presets.txt" "$fc_config_dir/vulkan.env" "$fc_config_dir/guard-failure-limit" "$fc_config_dir/language.txt"
 
 rmdir "$fc_data_dir/layer" "$fc_data_dir/lib" "$fc_data_dir" 2>/dev/null || true
 rmdir "$fc_config_dir" "$fc_unit_dir/steamvr.service.d" 2>/dev/null || true

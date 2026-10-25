@@ -1,4 +1,5 @@
 #include "draw.h"
+#include "i18n.h"
 #include "openvr.h"
 #include "vr_overlay.h"
 
@@ -57,7 +58,7 @@ struct Values {
 
 struct Preset { Values values; bool valid = false; };
 
-enum class HitKind { Slider, ChannelMenu, ChannelChoice, Preset, SaveMode, Reset };
+enum class HitKind { Slider, ChannelMenu, ChannelChoice, Preset, SaveMode, Reset, LanguageMenu, LanguageChoice };
 struct Hit { double x, y, w, h; HitKind kind; int arg; };
 
 struct UiState {
@@ -66,10 +67,14 @@ struct UiState {
     int channel = 0;       // 0=all, 1=red, 2=green, 3=blue
     int activeSlider = -1;
     bool channelOpen = false;
+    bool languageOpen = false;
+    bool resetConfirm = false;
+    Language language = Language::English;
     bool saveMode = false;
     bool lookDirty = false;
     bool vulkanLayerActive = false;
     std::string message;
+    bool messageIsError = false;
 };
 
 const std::array<Preset, 3> kBuiltins{{
@@ -96,13 +101,16 @@ double average(const std::array<double, 3>& values) {
 }
 
 bool setSetting(const char* key, double value, UiState& ui) {
+    const auto& tr = getTranslations(ui.language);
     vr::EVRSettingsError error = vr::VRSettingsError_None;
     vr::VRSettings()->SetFloat("steamvr", key, static_cast<float>(value), &error);
     if (error != vr::VRSettingsError_None) {
-        ui.message = std::string("設定の保存に失敗: ") + vr::VRSettings()->GetSettingsErrorNameFromEnum(error);
+        ui.message = std::string(tr.errorSaveSettings) + vr::VRSettings()->GetSettingsErrorNameFromEnum(error);
+        ui.messageIsError = true;
         return false;
     }
-    ui.message = "適用しました";
+    ui.message = tr.applied;
+    ui.messageIsError = false;
     return true;
 }
 
@@ -154,7 +162,12 @@ bool saveAdvancedValues(UiState& ui) {
     std::filesystem::create_directories(path.parent_path(), ec);
     const auto temporary = path.string() + ".tmp";
     std::ofstream out(temporary, std::ios::trunc);
-    if (!out) { ui.message = "詳細設定を保存できません"; return false; }
+    const auto& tr = getTranslations(ui.language);
+    if (!out) {
+        ui.message = tr.errorSaveAdvanced;
+        ui.messageIsError = true;
+        return false;
+    }
     out << std::setprecision(9)
         << ui.values.channelContrast[0] << ' ' << ui.values.channelContrast[1] << ' ' << ui.values.channelContrast[2] << ' '
         << ui.values.gamma[0] << ' ' << ui.values.gamma[1] << ' ' << ui.values.gamma[2] << ' '
@@ -163,7 +176,12 @@ bool saveAdvancedValues(UiState& ui) {
         << ui.values.saturation[2] << '\n';
     out.close();
     std::filesystem::rename(temporary, path, ec);
-    if (ec) { std::filesystem::remove(temporary); ui.message = "詳細設定を保存できません"; return false; }
+    if (ec) {
+        std::filesystem::remove(temporary);
+        ui.message = tr.errorSaveAdvanced;
+        ui.messageIsError = true;
+        return false;
+    }
     return true;
 }
 
@@ -199,7 +217,12 @@ bool saveCustomPresets(UiState& ui) {
     std::filesystem::create_directories(path.parent_path(), ec);
     const auto temporary = path.string() + ".tmp";
     std::ofstream out(temporary, std::ios::trunc);
-    if (!out) { ui.message = "プリセットを保存できません"; return false; }
+    const auto& tr = getTranslations(ui.language);
+    if (!out) {
+        ui.message = tr.errorSavePreset;
+        ui.messageIsError = true;
+        return false;
+    }
     out << std::setprecision(9);
     for (const Preset& preset : ui.custom) {
         const Values& v = preset.values;
@@ -211,18 +234,28 @@ bool saveCustomPresets(UiState& ui) {
     }
     out.close();
     std::filesystem::rename(temporary, path, ec);
-    if (ec) { std::filesystem::remove(temporary); ui.message = "プリセットを保存できません"; return false; }
+    if (ec) {
+        std::filesystem::remove(temporary);
+        ui.message = tr.errorSavePreset;
+        ui.messageIsError = true;
+        return false;
+    }
     return true;
 }
 
 void applyPreset(const Preset& preset, UiState& ui) {
-    if (!preset.valid) { ui.message = "このスロットは未保存です"; return; }
+    const auto& tr = getTranslations(ui.language);
+    if (!preset.valid) {
+        ui.message = tr.slotEmpty;
+        ui.messageIsError = true;
+        return;
+    }
     ui.values = preset.values;
     setSetting("analogGain", ui.values.panel, ui);
     ui.lookDirty = true;
     saveAdvancedValues(ui);
     readValues(ui.values);
-    if (ui.message == "適用しました" || ui.message == "プリセットを適用しました") ui.message.clear();
+    if (!ui.messageIsError) ui.message.clear();
 }
 
 void fillRect(const Pen& p, double x, double y, double w, double h, Color c, double radius = 12) {
@@ -244,8 +277,13 @@ void button(const Pen& p, std::vector<Hit>& hits, double x, double y, double w, 
     fillRect(p, x, y, w, h, selected ? kAccent : (hovered ? kHover : kControl));
     strokeRect(p, x, y, w, h, hovered ? kAccent : kBorder);
     const Color color = usable ? (selected ? kBg : kText) : kMuted;
-    const double tw = p.measure(label, 21, true);
-    p.text(x + (w - tw) / 2, y + h / 2 + 8, label, 21, color, true);
+    double fontSize = 21;
+    double tw = p.measure(label, fontSize, true);
+    if (tw > w - 12) {
+        fontSize = std::max(13.0, std::floor(fontSize * (w - 12) / tw));
+        tw = p.measure(label, fontSize, true);
+    }
+    p.text(x + (w - tw) / 2, y + h / 2 + fontSize * 0.38, label, fontSize, color, true);
     if (usable) hits.push_back({x, y, w, h, kind, arg});
 }
 
@@ -331,43 +369,80 @@ void render(const FontSet& fonts, const UiState& ui, double pointerX, double poi
     cairo_surface_t* surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, kWidth, kHeight);
     cairo_t* cr = cairo_create(surface); Pen p{cr, &fonts};
     cairo_set_source_rgb(cr, kBg.r, kBg.g, kBg.b); cairo_paint(cr);
-    p.text(45, 51, "Display Color Adjustment", 34, kText, true);
+
+    const auto& tr = getTranslations(ui.language);
+    p.text(45, 51, tr.title, 34, kText, true);
     hits.clear();
 
-    const std::array<std::string, 6> names{{"標準", "鮮やか", "夜間", "P1", "P2", "P3"}};
+    // Language dropdown button (top-right, aligned with Reset button right edge at 1155)
+    const double langBtnW = 160;
+    const double langBtnH = 44;
+    const double langBtnX = 1155 - langBtnW;  // 995
+    const double langBtnY = 20;
+    const std::string langLabel = std::string(tr.displayName) + "    v";
+    button(p, hits, langBtnX, langBtnY, langBtnW, langBtnH, langLabel,
+           HitKind::LanguageMenu, 0, ui.languageOpen, true, pointerX, pointerY);
+
+    const std::array<std::string, 6> names{{
+        tr.builtinPresets[0],
+        tr.builtinPresets[1],
+        tr.builtinPresets[2],
+        "P1", "P2", "P3"
+    }};
     for (int i = 0; i < 6; ++i) {
         const bool valid = i < 3 || ui.custom[i - 3].valid;
         std::string label = names[i];
-        if (i >= 3 && !valid) label += "（空）";
+        if (i >= 3 && !valid) label += tr.emptySlotSuffix;
         button(p, hits, 45 + i * 137, 101, 125, 48, label, HitKind::Preset, i, false,
                !ui.saveMode || i >= 3, pointerX, pointerY);
     }
-    button(p, hits, 885, 101, 125, 48, ui.saveMode ? "保存先を選択" : "保存", HitKind::SaveMode, 0,
+    button(p, hits, 885, 101, 125, 48, ui.saveMode ? tr.selectSlot : tr.save, HitKind::SaveMode, 0,
            ui.saveMode, true, pointerX, pointerY);
-    button(p, hits, 1025, 101, 130, 48, "リセット", HitKind::Reset, 0, false, true, pointerX, pointerY);
+    button(p, hits, 1025, 101, 130, 48, ui.resetConfirm ? tr.resetConfirm : tr.reset,
+           HitKind::Reset, 0, ui.resetConfirm, true, pointerX, pointerY);
 
-    static const std::array<const char*, 4> channelNames{{"全体", "赤", "緑", "青"}};
-    slider(p, hits, 174, "パネル輝度", ui.values.panel, 0.40, 1.25, 0, true);
+    slider(p, hits, 174, tr.panelBrightness, ui.values.panel, 0.40, 1.25, 0, true);
 
-    p.text(45, 289, "調整チャンネル", 22, kText, true);
-    button(p, hits, 885, 251, 270, 54, std::string(channelNames[ui.channel]) + "    v",
+    p.text(45, 289, tr.adjustmentChannel, 22, kText, true);
+    button(p, hits, 885, 251, 270, 54, std::string(tr.channelNames[ui.channel]) + "    v",
            HitKind::ChannelMenu, 0, ui.channelOpen, true, pointerX, pointerY);
 
-    slider(p, hits, 320, "明るさ", selectedGain(ui), 0.50, 1.50, 1, ui.vulkanLayerActive);
-    slider(p, hits, 410, "彩度", selectedArrayValue(ui.values.saturation, ui.channel),
+    slider(p, hits, 320, tr.brightness, selectedGain(ui), 0.50, 1.50, 1, ui.vulkanLayerActive);
+    slider(p, hits, 410, tr.saturation, selectedArrayValue(ui.values.saturation, ui.channel),
            0.0, 2.0, 4, ui.vulkanLayerActive);
-    slider(p, hits, 500, "コントラスト",
+    slider(p, hits, 500, tr.contrast,
            selectedArrayValue(ui.values.channelContrast, ui.channel), 0.0, 1.0, 2, ui.vulkanLayerActive);
-    slider(p, hits, 590, "ガンマ",
+    slider(p, hits, 590, tr.gamma,
            selectedArrayValue(ui.values.gamma, ui.channel), 0.50, 2.50, 3, ui.vulkanLayerActive);
 
-    if (!ui.message.empty()) p.text(45, 680, ui.message, 20, ui.message.find("失敗") == std::string::npos ? kGreen : kRed);
+    if (!ui.message.empty()) {
+        p.text(45, 680, ui.message, 20, ui.messageIsError ? kRed : kGreen);
+    }
 
+    // Dropdown popups are rendered last so they appear on top and hit-test first
     if (ui.channelOpen) {
-        fillRect(p, 885, 307, 270, 224, kBg, 10); strokeRect(p, 885, 307, 270, 224, kAccent, 10);
+        fillRect(p, 885, 307, 270, 224, kBg, 10);
+        strokeRect(p, 885, 307, 270, 224, kAccent, 10);
         for (int i = 0; i < 4; ++i) {
-            button(p, hits, 895, 317 + i * 51, 250, 43, channelNames[i], HitKind::ChannelChoice, i,
+            button(p, hits, 895, 317 + i * 51, 250, 43, tr.channelNames[i], HitKind::ChannelChoice, i,
                    ui.channel == i, true, pointerX, pointerY);
+        }
+    }
+
+    if (ui.languageOpen) {
+        const auto& langs = availableLanguages();
+        const double menuX = langBtnX;
+        const double menuY = langBtnY + langBtnH + 4;
+        const double menuW = langBtnW;
+        const double itemH = 42;
+        const double menuH = 10 + langs.size() * itemH;
+        fillRect(p, menuX, menuY, menuW, menuH, kBg, 10);
+        strokeRect(p, menuX, menuY, menuW, menuH, kAccent, 10);
+        for (size_t i = 0; i < langs.size(); ++i) {
+            const auto& itemTr = getTranslations(langs[i]);
+            button(p, hits, menuX + 8, menuY + 6 + i * itemH, menuW - 16, itemH - 4,
+                   itemTr.displayName, HitKind::LanguageChoice, static_cast<int>(langs[i]),
+                   ui.language == langs[i], true, pointerX, pointerY);
         }
     }
 
@@ -389,25 +464,79 @@ const Hit* hitTest(const std::vector<Hit>& hits, double x, double y) {
     return nullptr;
 }
 
-void activate(const Hit& hit, double x, UiState& ui) {
+void activate(const Hit& hit, double x, UiState& ui, VrOverlay& overlay) {
+    const auto& tr = getTranslations(ui.language);
     switch (hit.kind) {
-        case HitKind::Slider: ui.activeSlider = hit.arg; ui.channelOpen = false; updateSlider(ui, hit.arg, x); break;
-        case HitKind::ChannelMenu: ui.channelOpen = !ui.channelOpen; break;
-        case HitKind::ChannelChoice: ui.channel = hit.arg; ui.channelOpen = false; ui.message.clear(); break;
-        case HitKind::SaveMode: ui.saveMode = !ui.saveMode; ui.message = ui.saveMode ? "保存先 P1〜P3 を選んでください" : "保存をキャンセルしました"; break;
+        case HitKind::Slider:
+            ui.activeSlider = hit.arg;
+            ui.channelOpen = false;
+            ui.languageOpen = false;
+            ui.resetConfirm = false;
+            updateSlider(ui, hit.arg, x);
+            break;
+        case HitKind::ChannelMenu:
+            ui.channelOpen = !ui.channelOpen;
+            ui.languageOpen = false;
+            ui.resetConfirm = false;
+            break;
+        case HitKind::ChannelChoice:
+            ui.channel = hit.arg;
+            ui.channelOpen = false;
+            ui.resetConfirm = false;
+            ui.message.clear();
+            break;
+        case HitKind::LanguageMenu:
+            ui.languageOpen = !ui.languageOpen;
+            ui.channelOpen = false;
+            ui.resetConfirm = false;
+            break;
+        case HitKind::LanguageChoice:
+            ui.language = static_cast<Language>(hit.arg);
+            ui.languageOpen = false;
+            ui.resetConfirm = false;
+            ui.message.clear();
+            saveLanguage(presetPath().parent_path(), ui.language);
+            overlay.setOverlayName(getTranslations(ui.language).dashboardName);
+            break;
+        case HitKind::SaveMode:
+            ui.saveMode = !ui.saveMode;
+            ui.message = ui.saveMode ? tr.promptSaveSlot : tr.saveCanceled;
+            ui.messageIsError = false;
+            ui.channelOpen = false;
+            ui.languageOpen = false;
+            ui.resetConfirm = false;
+            break;
         case HitKind::Preset:
+            ui.resetConfirm = false;
             if (ui.saveMode) {
                 if (hit.arg >= 3) {
                     ui.custom[hit.arg - 3] = {ui.values, true};
-                    if (saveCustomPresets(ui)) ui.message = "P" + std::to_string(hit.arg - 2) + " に保存しました";
+                    if (saveCustomPresets(ui)) {
+                        ui.message = tr.formatSavedToSlot(hit.arg - 2);
+                        ui.messageIsError = false;
+                    }
                     ui.saveMode = false;
                 }
             } else {
                 applyPreset(hit.arg < 3 ? kBuiltins[hit.arg] : ui.custom[hit.arg - 3], ui);
             }
             ui.channelOpen = false;
+            ui.languageOpen = false;
             break;
-        case HitKind::Reset: applyPreset(kBuiltins[0], ui); ui.channelOpen = false; ui.saveMode = false; break;
+        case HitKind::Reset:
+            if (!ui.resetConfirm) {
+                ui.resetConfirm = true;
+                ui.saveMode = false;
+                ui.channelOpen = false;
+                ui.languageOpen = false;
+            } else {
+                applyPreset(kBuiltins[0], ui);
+                ui.resetConfirm = false;
+                ui.channelOpen = false;
+                ui.languageOpen = false;
+                ui.saveMode = false;
+            }
+            break;
     }
 }
 
@@ -425,7 +554,10 @@ int main() {
     if (gStop) return 0;
     FontSet fonts; fonts.load(kFont, kBold);
     std::vector<uint8_t> pixels; thumbnail(fonts, pixels); overlay.submitThumbnail(pixels.data(), kThumb);
-    UiState ui; readValues(ui.values); loadAdvancedValues(ui.values); loadCustomPresets(ui);
+    UiState ui;
+    ui.language = loadSavedLanguage(presetPath().parent_path());
+    overlay.setOverlayName(getTranslations(ui.language).dashboardName);
+    readValues(ui.values); loadAdvancedValues(ui.values); loadCustomPresets(ui);
     const char* dataHome = std::getenv("XDG_DATA_HOME");
     const char* home = std::getenv("HOME");
     const std::filesystem::path dataRoot = dataHome && *dataHome ? dataHome :
@@ -446,8 +578,12 @@ int main() {
             } else if (e.type == PointerInput::Type::Leave) {
                 px = py = -1; ui.activeSlider = -1; dirty = true;
             } else if (e.type == PointerInput::Type::Down) {
-                if (const Hit* hit = hitTest(hits, e.x, e.y)) activate(*hit, e.x, ui);
-                else ui.channelOpen = false;
+                if (const Hit* hit = hitTest(hits, e.x, e.y)) activate(*hit, e.x, ui, overlay);
+                else {
+                    ui.channelOpen = false;
+                    ui.languageOpen = false;
+                    ui.resetConfirm = false;
+                }
                 dirty = true;
             } else if (e.type == PointerInput::Type::Up) {
                 ui.activeSlider = -1; readValues(ui.values);

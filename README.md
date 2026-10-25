@@ -4,7 +4,7 @@
 
 ## Overview
 
-FrameColor lets you adjust the Steam Frame's display colors from the SteamVR dashboard inside the headset. Alongside panel brightness, you can adjust brightness, saturation, contrast, and gamma globally or separately for the red, green, and blue channels. It includes the 標準 (Standard), 鮮やか (Vivid), and 夜間 (Night) presets, plus three slots for your own presets.
+FrameColor lets you adjust the Steam Frame's display colors from the SteamVR dashboard inside the headset. Alongside panel brightness, you can adjust brightness, saturation, contrast, and gamma globally or separately for the red, green, and blue channels. It includes Standard, Vivid, and Night presets, plus three slots for your own presets.
 
 FrameColor is for Steam Frame only. Color correction is applied by a Vulkan layer loaded into SteamVR's `vrcompositor`. It affects locally run and streamed content, as well as the dashboard and other displayed elements.
 
@@ -68,6 +68,7 @@ Uninstalling also deletes saved adjustments and presets. Panel brightness stored
 ## Settings
 
 Open “Display Color Adjustment” in the SteamVR dashboard.
+You can switch the interface language between English and Japanese using the language drop-down menu in the top-right corner of the overlay panel.
 
 | Control | Range | Applies to |
 | --- | --- | --- |
@@ -77,7 +78,7 @@ Open “Display Color Adjustment” in the SteamVR dashboard.
 | Contrast | 0–100% | Vulkan correction; global or per RGB channel; 0% is standard |
 | Gamma | 0.50–2.50 | Vulkan correction; global or per RGB channel; 1.00 is standard |
 
-Under 調整チャンネル (Adjustment Channel), choose 全体 (All), 赤 (Red), 緑 (Green), or 青 (Blue). Moving a control with 全体 selected changes the current values of all three channels together. Panel brightness is unaffected by the channel selection. To save the current settings, select 保存 (Save) and then P1, P2, or P3. リセット (Reset) applies the 標準 (Standard) preset.
+Under Adjustment Channel, choose All, Red, Green, or Blue. Moving a control with All selected changes the current values of all three channels together. Panel brightness is unaffected by the channel selection. To save the current settings, select Save and then P1, P2, or P3. Reset applies the Standard preset.
 
 You can also use these commands over SSH:
 
@@ -86,6 +87,7 @@ You can also use these commands over SSH:
 ~/.local/bin/framecolorctl doctor
 ~/.local/bin/framecolorctl disable
 ~/.local/bin/framecolorctl enable
+~/.local/bin/framecolorctl language
 ```
 
 `disable` turns off both Vulkan correction and the dashboard; `enable` turns them back on. Both commands restart SteamVR. `disable` does not delete saved adjustments or presets. If the display becomes hard to see, run `disable` over SSH.

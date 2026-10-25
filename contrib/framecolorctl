@@ -49,6 +49,9 @@ case "${1:-}" in
         fc_count=$(cat "$fc_guard_failures" 2>/dev/null || true)
         case "$fc_count" in *[!0-9]*|'') fc_count=0 ;; esac
         printf 'Startup guard: disable after %s failed launch(es); current count %s\n' "$fc_limit" "$fc_count"
+        fc_lang=$(cat "$HOME/.config/framecolor/language.txt" 2>/dev/null || true)
+        case "$fc_lang" in ja) fc_lang="ja" ;; *) fc_lang="en" ;; esac
+        printf 'Language: %s\n' "$fc_lang"
         if [ -e "$fc_legacy_unit" ]; then printf 'Warning: older Vulkan test drop-in is active.\n'; fi
         ;;
     doctor)
@@ -65,7 +68,8 @@ case "${1:-}" in
     guard)
         case "${2:-}" in
             1|3)
-                install -d -m 700 "$(dirname "$fc_guard_limit")"
+                mkdir -p "$(dirname "$fc_guard_limit")"
+                chmod 700 "$(dirname "$fc_guard_limit")" 2>/dev/null || true
                 printf '%s\n' "$2" > "$fc_guard_limit.tmp"
                 mv "$fc_guard_limit.tmp" "$fc_guard_limit"
                 rm -f "$fc_guard_failures"
@@ -77,8 +81,30 @@ case "${1:-}" in
             *) printf 'Usage: framecolorctl guard 1|3|status\n' >&2; exit 2 ;;
         esac
         ;;
+    lang|language)
+        fc_lang_file="$HOME/.config/framecolor/language.txt"
+        case "${2:-}" in
+            en|ja)
+                mkdir -p "$(dirname "$fc_lang_file")"
+                chmod 700 "$(dirname "$fc_lang_file")" 2>/dev/null || true
+                printf '%s\n' "$2" > "$fc_lang_file.tmp"
+                mv "$fc_lang_file.tmp" "$fc_lang_file"
+                printf 'Language set to %s.\n' "$2"
+                ;;
+            status|'')
+                fc_lang=$(cat "$fc_lang_file" 2>/dev/null || true)
+                case "$fc_lang" in ja) fc_lang="ja" ;; *) fc_lang="en" ;; esac
+                printf 'Configured language: %s\n' "$fc_lang"
+                printf 'Swap languages by appending to this command (e.g. framecolorctl language ja)\n'
+                ;;
+            *)
+                printf 'Usage: framecolorctl language en|ja|status\n' >&2
+                exit 2
+                ;;
+        esac
+        ;;
     *)
-        printf 'Usage: framecolorctl enable|disable|status|doctor|guard 1|3|status\n' >&2
+        printf 'Usage: framecolorctl enable|disable|status|doctor|guard 1|3|status|language en|ja|status\n' >&2
         exit 2
         ;;
 esac

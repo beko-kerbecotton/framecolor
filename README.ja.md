@@ -67,7 +67,8 @@ sh contrib/uninstall.sh
 
 ## 設定
 
-SteamVRダッシュボードで「Display Color Adjustment」を開いて操作します．
+SteamVRダッシュボードで「Display Color Adjustment」（ディスプレイ色調整）を開いて操作します．
+パネル右上の言語ドロップダウンメニューから英語と日本語を切り替えることができます．
 
 | 項目 | 範囲 | 適用先 |
 | --- | --- | --- |
@@ -86,6 +87,7 @@ SSHからは次のコマンドを使えます．
 ~/.local/bin/framecolorctl doctor
 ~/.local/bin/framecolorctl disable
 ~/.local/bin/framecolorctl enable
+~/.local/bin/framecolorctl language
 ```
 
 `disable` はVulkan補正とダッシュボードを無効にし，`enable` は両方を有効にします．どちらもSteamVRを再起動します．`disable` では保存済みの調整値とプリセットは削除されません．画面が見づらくなった場合は，SSHから `disable` を実行してください．

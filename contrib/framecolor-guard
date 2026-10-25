@@ -16,7 +16,8 @@ case "$fc_limit" in 3) ;; *) fc_limit=1 ;; esac
 case "${1:-}" in
     start)
         if [ -f "$fc_manifest" ]; then
-            install -d -m 700 "$fc_runtime_dir"
+            mkdir -p "$fc_runtime_dir"
+            chmod 700 "$fc_runtime_dir" 2>/dev/null || true
             date +%s > "$fc_started"
         else
             rm -f "$fc_started"

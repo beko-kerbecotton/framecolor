@@ -98,6 +98,12 @@ public:
     bool submitPanel(const uint8_t* rgba);
 
     /**
+     * Update the dashboard panel overlay name (shown in tooltip/dashboard).
+     * @param name new overlay name
+     */
+    void setOverlayName(const std::string& name);
+
+    /**
      * Diagnostic: look up the overlay again by key and log its texture size and so on.
      * @param when what point this check is at (for logging)
      */

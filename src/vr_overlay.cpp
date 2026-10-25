@@ -272,6 +272,12 @@ bool VrOverlay::submitPanel(const uint8_t* rgba) {
     return ok;
 }
 
+void VrOverlay::setOverlayName(const std::string& name) {
+    if (connected_ && dashboardHandle_ != 0 && vr::VROverlay() != nullptr) {
+        vr::VROverlay()->SetOverlayName(dashboardHandle_, name.c_str());
+    }
+}
+
 void VrOverlay::logOverlayState(const char* when) const {
     if (!connected_) return;
     vr::IVROverlay* overlay = vr::VROverlay();
