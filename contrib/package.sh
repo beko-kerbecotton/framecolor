@@ -11,10 +11,11 @@ command -v strip >/dev/null 2>&1 || { printf 'Missing required command: strip\n'
 cmake -G Ninja -S "$fc_source_dir" -B "$fc_source_dir/build"
 cmake --build "$fc_source_dir/build"
 fc_layer_build="$fc_source_dir/build/vkbasalt"
+# Release build: meson defaults to an unoptimized debug build (see install.sh)
 if [ ! -f "$fc_layer_build/build.ninja" ]; then
-    meson setup "$fc_layer_build" "$fc_source_dir/third_party/vkbasalt"
+    meson setup --buildtype=release "$fc_layer_build" "$fc_source_dir/third_party/vkbasalt"
 else
-    meson setup --wipe "$fc_layer_build" "$fc_source_dir/third_party/vkbasalt"
+    meson setup --wipe --buildtype=release "$fc_layer_build" "$fc_source_dir/third_party/vkbasalt"
 fi
 ninja -C "$fc_layer_build"
 

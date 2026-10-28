@@ -43,10 +43,12 @@ else
     cmake --build "$fc_source_dir/build"
     fc_overlay_binary="$fc_source_dir/build/framecolor"
     fc_layer_build="$fc_source_dir/build/vkbasalt"
+    # The layer runs inside vrcompositor on every frame. Meson defaults to an
+    # unoptimized debug build, so ask for a release build.
     if [ ! -f "$fc_layer_build/build.ninja" ]; then
-        meson setup "$fc_layer_build" "$fc_source_dir/third_party/vkbasalt"
+        meson setup --buildtype=release "$fc_layer_build" "$fc_source_dir/third_party/vkbasalt"
     else
-        meson setup --wipe "$fc_layer_build" "$fc_source_dir/third_party/vkbasalt"
+        meson setup --wipe --buildtype=release "$fc_layer_build" "$fc_source_dir/third_party/vkbasalt"
     fi
     ninja -C "$fc_layer_build"
     fc_layer_binary="$fc_layer_build/src/libvkbasalt.so"
